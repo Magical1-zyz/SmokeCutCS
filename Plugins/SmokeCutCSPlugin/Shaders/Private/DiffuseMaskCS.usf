@@ -1,0 +1,62 @@
+﻿#include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
+
+Texture2D<float4> InputTexture;
+SamplerState InputSampler;
+
+RWTexture2D<float4> OutputTexture;
+
+float DeltaTime;
+float DiffuseStrength;
+int2 TextureSize;
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	if (DispatchThreadId.x >= TextureSize.x || DispatchThreadId.y >= TextureSize.y)
+	{
+		return;
+	}
+
+	int2 p = int2(DispatchThreadId.xy);
+
+	int2 p00 = int2(max(p.x - 1, 0),                 max(p.y - 1, 0));
+	int2 p10 = int2(p.x,                              max(p.y - 1, 0));
+	int2 p20 = int2(min(p.x + 1, TextureSize.x - 1), max(p.y - 1, 0));
+
+	int2 p01 = int2(max(p.x - 1, 0),                 p.y);
+	int2 p11 = int2(p.x,                              p.y);
+	int2 p21 = int2(min(p.x + 1, TextureSize.x - 1), p.y);
+
+	int2 p02 = int2(max(p.x - 1, 0),                 min(p.y + 1, TextureSize.y - 1));
+	int2 p12 = int2(p.x,                              min(p.y + 1, TextureSize.y - 1));
+	int2 p22 = int2(min(p.x + 1, TextureSize.x - 1), min(p.y + 1, TextureSize.y - 1));
+
+	float s00 = InputTexture.Load(int3(p00, 0)).r;
+	float s10 = InputTexture.Load(int3(p10, 0)).r;
+	float s20 = InputTexture.Load(int3(p20, 0)).r;
+
+	float s01 = InputTexture.Load(int3(p01, 0)).r;
+	float s11 = InputTexture.Load(int3(p11, 0)).r;
+	float s21 = InputTexture.Load(int3(p21, 0)).r;
+
+	float s02 = InputTexture.Load(int3(p02, 0)).r;
+	float s12 = InputTexture.Load(int3(p12, 0)).r;
+	float s22 = InputTexture.Load(int3(p22, 0)).r;
+
+	// 3x3 Gaussian kernel:
+	// 1 2 1
+	// 2 4 2
+	// 1 2 1
+	float blurred =
+		(s00 + 2.0 * s10 + s20 +
+		 2.0 * s01 + 4.0 * s11 + 2.0 * s21 +
+		 s02 + 2.0 * s12 + s22) / 16.0;
+
+	float blend = saturate(DiffuseStrength * DeltaTime);
+
+	// 向高斯模糊结果轻微靠拢，而不是完全替换
+	float newValue = lerp(s11, blurred, blend);
+
+	OutputTexture[p] = float4(newValue, newValue, newValue, 1.0);
+}
