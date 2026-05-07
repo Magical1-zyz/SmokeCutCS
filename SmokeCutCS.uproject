@@ -1,0 +1,22 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{75E2C78B-418D-A9B1-9445-0CB9C5B18171}",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "SmokeCutCS",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		}
+	]
+}
