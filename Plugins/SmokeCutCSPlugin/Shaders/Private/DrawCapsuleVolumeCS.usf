@@ -1,0 +1,48 @@
+﻿#include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
+
+RWTexture3D<float4> OutputTexture;
+
+float3 StartUVW;
+float3 EndUVW;
+float Radius;
+float EdgeSoftness;
+float Strength;
+int3 TextureSize;
+
+float DistancePointToSegment(float3 p, float3 a, float3 b)
+{
+	float3 ab = b - a;
+	float abLenSq = max(dot(ab, ab), 0.000001);
+
+	float t = dot(p - a, ab) / abLenSq;
+	t = saturate(t);
+
+	float3 closestPoint = a + ab * t;
+	return distance(p, closestPoint);
+}
+
+[numthreads(4, 4, 4)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	if (DispatchThreadId.x >= TextureSize.x ||
+		DispatchThreadId.y >= TextureSize.y ||
+		DispatchThreadId.z >= TextureSize.z)
+	{
+		return;
+	}
+
+	float3 uvw = (float3(DispatchThreadId.xyz) + 0.5) / float3(TextureSize);
+
+	float distToCapsule = DistancePointToSegment(uvw, StartUVW, EndUVW);
+
+	float innerRadius = max(Radius - EdgeSoftness, 0.0);
+	float capsuleMask = 1.0 - smoothstep(innerRadius, Radius, distToCapsule);
+
+	float value = saturate(capsuleMask * Strength);
+
+	float oldValue = OutputTexture[DispatchThreadId.xyz].r;
+	float finalValue = max(oldValue, value);
+
+	OutputTexture[DispatchThreadId.xyz] = float4(finalValue, finalValue, finalValue, 1.0);
+}

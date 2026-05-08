@@ -1,0 +1,67 @@
+﻿#include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
+
+Texture3D<float4> InputTexture;
+RWTexture3D<float4> OutputTexture;
+
+float DeltaTime;
+float DiffuseStrength;
+int3 TextureSize;
+
+[numthreads(4, 4, 4)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	if (DispatchThreadId.x >= TextureSize.x ||
+		DispatchThreadId.y >= TextureSize.y ||
+		DispatchThreadId.z >= TextureSize.z)
+	{
+		return;
+	}
+
+	int3 pos = int3(DispatchThreadId.xyz);
+
+	float centerValue = InputTexture.Load(int4(pos, 0)).r;
+
+	float sum = 0.0;
+	float weightSum = 0.0;
+
+	// 3x3x3 Gaussian-like kernel
+	// 权重来自 [1, 2, 1] x [1, 2, 1] x [1, 2, 1]
+	[unroll]
+	for (int z = -1; z <= 1; z++)
+	{
+		[unroll]
+		for (int y = -1; y <= 1; y++)
+		{
+			[unroll]
+			for (int x = -1; x <= 1; x++)
+			{
+				int3 samplePos = pos + int3(x, y, z);
+
+				samplePos.x = clamp(samplePos.x, 0, TextureSize.x - 1);
+				samplePos.y = clamp(samplePos.y, 0, TextureSize.y - 1);
+				samplePos.z = clamp(samplePos.z, 0, TextureSize.z - 1);
+
+				float wx = (x == 0) ? 2.0 : 1.0;
+				float wy = (y == 0) ? 2.0 : 1.0;
+				float wz = (z == 0) ? 2.0 : 1.0;
+
+				float weight = wx * wy * wz;
+
+				float v = InputTexture.Load(int4(samplePos, 0)).r;
+
+				sum += v * weight;
+				weightSum += weight;
+			}
+		}
+	}
+
+	float blurredValue = sum / max(weightSum, 0.0001);
+
+	float diffuseAlpha = saturate(DiffuseStrength * DeltaTime);
+
+	float finalValue = lerp(centerValue, blurredValue, diffuseAlpha);
+	finalValue = saturate(finalValue);
+
+	OutputTexture[DispatchThreadId.xyz] = float4(finalValue, finalValue, finalValue, 1.0);
+}

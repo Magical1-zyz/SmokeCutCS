@@ -1,0 +1,26 @@
+﻿#include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
+
+RWTexture3D<float4> VolumeTexture;
+
+float DeltaTime;
+float RecoveryRate;
+int3 TextureSize;
+
+[numthreads(4, 4, 4)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	if (DispatchThreadId.x >= TextureSize.x ||
+		DispatchThreadId.y >= TextureSize.y ||
+		DispatchThreadId.z >= TextureSize.z)
+	{
+		return;
+	}
+
+	float4 oldValue = VolumeTexture[DispatchThreadId.xyz];
+
+	float recoverAmount = RecoveryRate * DeltaTime;
+	float newMask = max(oldValue.r - recoverAmount, 0.0);
+
+	VolumeTexture[DispatchThreadId.xyz] = float4(newMask, newMask, newMask, 1.0);
+}
